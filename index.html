@@ -144,6 +144,29 @@
   .be-new{flex:1;min-width:0;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:13px;font-family:inherit}
   .be-new:focus{outline:2px solid var(--accent2);outline-offset:-1px}
   .be-addbtn{white-space:nowrap;margin:0}
+  .sv-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .sv-top select{padding:5px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;color:var(--ink)}
+  .sv-legend{margin-left:auto;font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+  .sv-legend .sw{width:12px;height:12px;border-radius:3px;display:inline-block;margin-left:8px}
+  .sv-est{background:#b9bec8 !important}
+  .sv-act{background:var(--accent) !important}
+  .sv-bars.bars{max-height:none}
+  .sv-row{align-items:center;margin:9px 0}
+  .sv-bars.wide .bar-lbl{width:190px}
+  .sv-pair{flex:1;display:flex;flex-direction:column;gap:3px;min-width:80px}
+  .sv-pair .bar-track{flex:none;height:11px}
+  .sv-nums{display:flex;flex-direction:column;width:112px;flex:none;font-size:11px;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.35}
+  .sv-nums i{font-style:normal;color:var(--muted)}
+  .sv-diff{width:150px;flex:none;font-weight:650;font-size:12px;color:var(--muted)}
+  .sv-diff.over{color:var(--danger)} .sv-diff.under{color:var(--ok)}
+  .sv-note{font-size:12px;color:var(--muted);margin-top:8px}
+  .sch-soorten{display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:14px}
+  .sch-chk{font-size:13px;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+  table.sch-table td{padding:0}
+  table.sch-table td.rowh{padding:5px 9px}
+  .sch-in{width:84px;border:0;background:transparent;text-align:right;padding:6px 9px;font-size:12px;font-family:inherit;color:var(--ink)}
+  .sch-in:focus{outline:2px solid var(--accent2);outline-offset:-2px;background:#fff}
+  table.sch-table td.tot{padding:5px 9px;font-weight:700;background:#fbfaf8}
 </style>
 </head>
 <body>
@@ -215,6 +238,17 @@
   <div class="dlg-f"><button class="btn primary" id="helpClose">Begrepen</button></div>
 </dialog>
 
+<dialog id="dagDlg" style="max-width:340px">
+  <form method="dialog" id="dagForm">
+    <div class="dlg-h">Kies een dag</div>
+    <div class="dlg-b"><input type="date" id="dagInput" required style="width:100%;font-size:15px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit"></div>
+    <div class="dlg-f">
+      <button class="btn" type="button" id="dagCancel">Annuleren</button>
+      <button class="btn primary" type="submit">Openen</button>
+    </div>
+  </form>
+</dialog>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -261,6 +295,22 @@ function ensureLists(){
   if(!Array.isArray(DB.werkzaamheden)) DB.werkzaamheden=uniq(SEED_WERK,DB.entries.map(e=>e.werk));
   if(!Array.isArray(DB.bestemmingen))  DB.bestemmingen=uniq(SEED_BEST,DB.entries.map(e=>e.bestemming));
   if(!Array.isArray(DB.inactieveProjecten)) DB.inactieveProjecten=[];
+  // urenschattingen: welke werkzaamheden "schatbaar" zijn en de schatting (uren) per project
+  if(!Array.isArray(DB.schattingWerk)) DB.schattingWerk=DB.werkzaamheden.filter(w=>/(ontwerp|bouw|afwerking)$/i.test(w));
+  if(!DB.schattingen || typeof DB.schattingen!=="object" || Array.isArray(DB.schattingen)) DB.schattingen={};
+}
+// schatbare werkzaamheden in de volgorde van de werkzaamhedenlijst
+function schatSoorten(){ ensureLists(); return DB.werkzaamheden.filter(w=>DB.schattingWerk.includes(w)); }
+function getSchat(p,w){ const v=DB.schattingen[p] && DB.schattingen[p][w]; return (typeof v==="number" && isFinite(v)) ? v : null; }
+function setSchat(p,w,v){
+  if(v==null){ if(DB.schattingen[p]){ delete DB.schattingen[p][w]; if(!Object.keys(DB.schattingen[p]).length) delete DB.schattingen[p]; } return; }
+  (DB.schattingen[p]=DB.schattingen[p]||{})[w]=v;
+}
+function dropWerkSchat(w){ DB.schattingWerk=DB.schattingWerk.filter(x=>x!==w); Object.keys(DB.schattingen).forEach(p=>setSchat(p,w,null)); }
+function countSchat(key,val){
+  if(key==="projecten") return DB.schattingen[val] ? Object.keys(DB.schattingen[val]).length : 0;
+  if(key==="werkzaamheden") return Object.keys(DB.schattingen).filter(p=>DB.schattingen[p][val]!=null).length;
+  return 0;
 }
 function isInactief(name){ return (DB.inactieveProjecten||[]).includes(name); }
 function rebuildLists(){
@@ -519,13 +569,68 @@ function usageCount(key,val){ const f=FIELD_OF[key]; return DB.entries.filter(e=
 function renderBeheer(){
   ensureLists();
   $("#view-beheer").innerHTML=`
-    <p class="be-intro">Beheer hier je keuzelijsten. Ze verschijnen direct bij de invoer. Het getal achter een waarde toont in hoeveel regels die wordt gebruikt. Hernoemen past ook bestaande regels aan. Een project op <b>inactief</b> zetten (het bolletje) haalt het uit de invoer-keuzelijst, maar het blijft zichtbaar in de rapportages.</p>
+    <p class="be-intro">Beheer hier je keuzelijsten. Ze verschijnen direct bij de invoer. Het getal achter een waarde toont in hoeveel regels die wordt gebruikt. Hernoemen past ook bestaande regels aan. Een project op <b>inactief</b> zetten (het bolletje) haalt het uit de invoer-keuzelijst, maar het blijft zichtbaar in de rapportages. <a href="#schPanel" id="goSch" style="color:var(--accent);font-weight:600">&darr; Naar de urenschattingen</a></p>
     <div class="beheer-grid">
       ${listEditor("projecten")}
       ${listEditor("werkzaamheden")}
       ${listEditor("bestemmingen")}
-    </div>`;
+    </div>
+    ${schattingPanel()}`;
   bindBeheer();
+  bindSchatting();
+  $("#goSch").onclick=e=>{ e.preventDefault(); $("#schPanel").scrollIntoView({behavior:"smooth",block:"start"}); };
+}
+
+/* urenschattingen: per project een schatting (uren) per schatbare werkzaamheid */
+function fmtUren(h){ return (Math.round(h*100)/100).toString().replace(".",","); }
+function schattingPanel(){
+  const soorten=schatSoorten();
+  const projs=DB.projecten.filter(p=>!isInactief(p) && p!==REIS);
+  const checks=DB.werkzaamheden.map((w,i)=>
+    `<label class="sch-chk"><input type="checkbox" data-sch-soort="${i}" ${DB.schattingWerk.includes(w)?"checked":""}> ${esc(w)}</label>`).join("");
+  let table;
+  if(!soorten.length) table=`<div class="empty-panel">Vink hierboven minstens één soort aan.</div>`;
+  else if(!projs.length) table=`<div class="empty-panel">Geen actieve projecten.</div>`;
+  else {
+    const rowTot=p=>soorten.reduce((s,w)=>s+(getSchat(p,w)||0),0);
+    table=`<div class="matrix-wrap"><table class="matrix sch-table"><thead><tr><th class="rowh">Project</th>`+
+      soorten.map(w=>`<th>${esc(w)}</th>`).join("")+`<th>Totaal</th></tr></thead><tbody>`+
+      projs.map(p=>`<tr><td class="rowh">${esc(p)}</td>`+
+        soorten.map(w=>{ const v=getSchat(p,w);
+          return `<td><input type="number" class="sch-in" min="0" step="0.5" data-p="${esc(p)}" data-w="${esc(w)}" value="${v==null?"":v}" placeholder="–"></td>`; }).join("")+
+        `<td class="tot" data-rowtot="${esc(p)}">${rowTot(p)?fmtUren(rowTot(p)):""}</td></tr>`).join("")+
+      `</tbody></table></div>`;
+  }
+  return `<div class="panel" id="schPanel">
+    <h2>Urenschattingen <small>uren per project, per soort werk</small></h2>
+    <p class="be-intro" style="margin-bottom:10px">Vink aan welke werkzaamheden je wilt schatten. Een nieuwe soort toevoegen? Maak hierboven eerst een werkzaamheid aan en vink die hier aan. Op het dashboard staan de schattingen naast de echt geschreven uren. Laat een vak leeg als je niets schat.</p>
+    <div class="sch-soorten">${checks}</div>
+    ${table}
+  </div>`;
+}
+function bindSchatting(){
+  const root=$("#schPanel"); if(!root) return;
+  root.querySelectorAll("[data-sch-soort]").forEach(cb=>{
+    cb.addEventListener("change",()=>{
+      const w=DB.werkzaamheden[+cb.dataset.schSoort];
+      if(cb.checked){ if(!DB.schattingWerk.includes(w)) DB.schattingWerk.push(w); }
+      else if(countSchat("werkzaamheden",w) && !confirm(`Er zijn al schattingen voor "${w}". Uitvinken verwijdert die. Doorgaan?`)){ cb.checked=true; return; }
+      else dropWerkSchat(w);
+      afterBeheerChange();
+    });
+  });
+  root.querySelectorAll(".sch-in").forEach(inp=>{
+    inp.addEventListener("change",()=>{
+      const raw=inp.value.trim(); const n=Number(raw);
+      if(raw==="" ) setSchat(inp.dataset.p,inp.dataset.w,null);
+      else if(isFinite(n) && n>=0) setSchat(inp.dataset.p,inp.dataset.w,Math.round(n*100)/100);
+      else { toast("Vul een aantal uren in (bijv. 12 of 7,5)."); inp.value=getSchat(inp.dataset.p,inp.dataset.w)??""; return; }
+      const tot=schatSoorten().reduce((s,w)=>s+(getSchat(inp.dataset.p,w)||0),0);
+      const cell=[...root.querySelectorAll("[data-rowtot]")].find(c=>c.dataset.rowtot===inp.dataset.p);
+      if(cell) cell.textContent=tot?fmtUren(tot):"";
+      scheduleSave();
+    });
+  });
 }
 function listEditor(key){
   const arr=DB[key]||[];
@@ -590,16 +695,25 @@ function addItem(key,val){ val=(val||"").trim(); if(!val) return;
 }
 function renameItem(key,i,val){ val=(val||"").trim(); const old=DB[key][i];
   if(val===old) return;
-  if(!val){ DB[key].splice(i,1); afterBeheerChange(); return; }
+  if(!val){ dropSchat(key,old); DB[key].splice(i,1); afterBeheerChange(); return; }
   if(DB[key].includes(val)){ toast("Bestaat al."); renderBeheer(); return; }
   DB[key][i]=val;
-  if(key==="projecten"){ const si=DB.inactieveProjecten.indexOf(old); if(si>=0) DB.inactieveProjecten[si]=val; }
+  if(key==="projecten"){ const si=DB.inactieveProjecten.indexOf(old); if(si>=0) DB.inactieveProjecten[si]=val;
+    if(DB.schattingen[old]){ DB.schattingen[val]=DB.schattingen[old]; delete DB.schattingen[old]; } }
+  if(key==="werkzaamheden"){ const wi=DB.schattingWerk.indexOf(old); if(wi>=0) DB.schattingWerk[wi]=val;
+    Object.keys(DB.schattingen).forEach(p=>{ if(DB.schattingen[p][old]!=null){ DB.schattingen[p][val]=DB.schattingen[p][old]; delete DB.schattingen[p][old]; } }); }
   const f=FIELD_OF[key]; let n=0; DB.entries.forEach(e=>{ if(e[f]===old){ e[f]=val; n++; } });
   afterBeheerChange(); if(n) toast(`Hernoemd in ${n} regel(s).`);
 }
 function moveItem(key,i,dir){ const j=i+dir; const a=DB[key]; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; afterBeheerChange(); }
-function deleteItem(key,i){ const val=DB[key][i]; const used=usageCount(key,val);
-  if(used && !confirm(`"${val}" wordt nog gebruikt in ${used} regel(s).\nUit de lijst verwijderen? De bestaande regels behouden hun waarde.`)){ return; }
+// verwijdert de schattingen die bij een project/werkzaamheid hoorden
+function dropSchat(key,val){
+  if(key==="projecten") delete DB.schattingen[val];
+  else if(key==="werkzaamheden") dropWerkSchat(val);
+}
+function deleteItem(key,i){ const val=DB[key][i]; const used=usageCount(key,val); const sch=countSchat(key,val);
+  if((used||sch) && !confirm(`"${val}" wordt nog gebruikt in ${used} regel(s).`+(sch?`\nEr zijn ${sch} urenschatting(en) aan gekoppeld; die worden ook verwijderd.`:"")+`\nUit de lijst verwijderen? De bestaande regels behouden hun waarde.`)){ return; }
+  dropSchat(key,val);
   DB[key].splice(i,1);
   if(key==="projecten"){ const si=DB.inactieveProjecten.indexOf(val); if(si>=0) DB.inactieveProjecten.splice(si,1); }
   afterBeheerChange();
@@ -612,6 +726,53 @@ function barChart(rows,wide){
     `<div class="bar-row"><span class="bar-lbl">${esc(r.label)}</span>`+
     `<span class="bar-track"><span class="bar-fill" style="width:${(r.min/max*100).toFixed(1)}%"></span></span>`+
     `<span class="bar-val">${hhmm(r.min)}</span></div>`).join("")+`</div>`;
+}
+
+/* schatting vs. werkelijk: alleen soorten waarvoor een schatting is ingevuld worden vergeleken */
+let dashSchatProj="ALL";
+function schatData(){
+  const soorten=schatSoorten();
+  const act={};   // project -> werk -> minuten (alle jaren)
+  DB.entries.forEach(e=>{ const m=durMin(e)||0; if(m<=0||!e.project) return;
+    const a=act[e.project]=act[e.project]||{}; a[e.werk||""]=(a[e.werk||""]||0)+m; });
+  return DB.projecten.filter(p=>soorten.some(w=>getSchat(p,w)!=null)).map(p=>{
+    const per=soorten.filter(w=>getSchat(p,w)!=null).map(w=>({label:w,est:Math.round(getSchat(p,w)*60),act:(act[p]&&act[p][w])||0}));
+    const est=per.reduce((s,r)=>s+r.est,0), actual=per.reduce((s,r)=>s+r.act,0);
+    const total=Object.values(act[p]||{}).reduce((s,m)=>s+m,0);
+    return {label:p,per,est,act:actual,overig:total-actual};
+  });
+}
+function diffHTML(est,act){
+  const d=act-est;
+  if(d===0) return `<span class="sv-diff">precies op schatting</span>`;
+  const pct=est? ` (${d>0?"+":"−"}${Math.round(Math.abs(d)/est*100)}%)` : "";
+  return `<span class="sv-diff ${d>0?"over":"under"}">${d>0?"+":"−"}${hhmm(Math.abs(d))} ${d>0?"meer":"minder"}${pct}</span>`;
+}
+function schatVsHTML(){
+  const data=schatData();
+  if(!data.length) return `<div class="empty-panel">Nog geen schattingen &mdash; vul ze in bij <b>Beheer</b>.</div>`;
+  if(dashSchatProj!=="ALL" && !data.some(d=>d.label===dashSchatProj)) dashSchatProj="ALL";
+  const rows = dashSchatProj==="ALL" ? data : data.find(d=>d.label===dashSchatProj).per;
+  const max=Math.max(1,...rows.flatMap(r=>[r.est,r.act]));
+  const opts=`<option value="ALL"${dashSchatProj==="ALL"?" selected":""}>Alle projecten</option>`+
+    data.map(d=>`<option value="${esc(d.label)}"${d.label===dashSchatProj?" selected":""}>${esc(d.label)}</option>`).join("");
+  const bars=rows.map(r=>`<div class="bar-row sv-row" title="${esc(r.label)}: schatting ${hhmm(r.est)}, werkelijk ${hhmm(r.act)}">
+      <span class="bar-lbl">${esc(r.label)}</span>
+      <span class="sv-pair">
+        <span class="bar-track"><span class="bar-fill sv-est" style="width:${(r.est/max*100).toFixed(1)}%"></span></span>
+        <span class="bar-track"><span class="bar-fill sv-act" style="width:${(r.act/max*100).toFixed(1)}%"></span></span>
+      </span>
+      <span class="sv-nums"><span>${hhmm(r.est)} <i>schatting</i></span><span>${hhmm(r.act)} <i>werkelijk</i></span></span>
+      ${diffHTML(r.est,r.act)}
+    </div>`).join("");
+  let overig="";
+  if(dashSchatProj!=="ALL"){ const d=data.find(x=>x.label===dashSchatProj);
+    if(d.overig>0) overig=`<div class="sv-note">Daarnaast ${hhmm(d.overig)} uur geschreven op werk dat niet geschat is (niet in de vergelijking).</div>`; }
+  return `<div class="sv-top">
+      <label for="svProj" style="color:var(--muted);font-size:13px">Project</label><select id="svProj">${opts}</select>
+      <span class="sv-legend"><span class="sw sv-est"></span>Schatting <span class="sw sv-act"></span>Werkelijk</span>
+    </div>
+    <div class="bars wide sv-bars">${bars}</div>${overig}`;
 }
 
 function renderDashboard(){
@@ -691,9 +852,11 @@ function renderDashboard(){
       <div class="panel"><h2>Uren per week <small>${scopeLbl}</small></h2>${barChart(wkRows)}</div>
     </div>
     <div class="panel"><h2>Uren per project <small>totaal</small></h2>${barChart(projList.map(p=>({label:p,min:projTot[p]})),true)}</div>
+    <div class="panel"><h2>Schatting vs. werkelijk <small>alle jaren, per project</small></h2>${schatVsHTML()}</div>
     <div class="panel"><h2>Project &times; werkzaamheid <small>uren per combinatie</small></h2>${matrix}</div>
   `;
   const sel=$("#dashYear"); if(sel) sel.onchange=()=>{ dashYear=sel.value; renderDashboard(); };
+  const sv=$("#svProj"); if(sv) sv.onchange=()=>{ dashSchatProj=sv.value; renderDashboard(); };
 }
 
 /* ============================ import / export ============================ */
@@ -713,6 +876,8 @@ function importJSON(){
       if(Array.isArray(d.werkzaamheden)) DB.werkzaamheden=d.werkzaamheden;
       if(Array.isArray(d.bestemmingen)) DB.bestemmingen=d.bestemmingen;
       if(Array.isArray(d.inactieveProjecten)) DB.inactieveProjecten=d.inactieveProjecten;
+      if(Array.isArray(d.schattingWerk)) DB.schattingWerk=d.schattingWerk;
+      if(d.schattingen && typeof d.schattingen==="object" && !Array.isArray(d.schattingen)) DB.schattingen=d.schattingen;
       render(); scheduleSave(); toast("Geïmporteerd: "+entries.length+" regels.");
     }catch(e){ toast("Kon bestand niet lezen."); }
   };
@@ -722,7 +887,15 @@ function importJSON(){
 /* ============================ init ============================ */
 async function init(){
   $("#btnVandaag").onclick=()=>addDay(todayStr());
-  $("#btnNieuweDag").onclick=()=>{ const d=prompt("Datum (jjjj-mm-dd):",todayStr()); if(d&&/^\d{4}-\d{2}-\d{2}$/.test(d)) addDay(d); else if(d) toast("Gebruik formaat jjjj-mm-dd."); };
+  $("#btnNieuweDag").onclick=()=>{
+    const inp=$("#dagInput"); inp.value=todayStr(); $("#dagDlg").showModal(); inp.focus();
+    try{ inp.showPicker(); }catch(e){}   // kalender meteen open (indien ondersteund)
+  };
+  $("#dagCancel").onclick=()=>$("#dagDlg").close();
+  $("#dagForm").onsubmit=()=>{
+    const d=$("#dagInput").value;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(d)) addDay(d); else toast("Kies eerst een datum.");
+  };
   $("#btnExport").onclick=exportJSON;
   $("#btnImport").onclick=importJSON;
   $("#btnHelp").onclick=()=>$("#helpDlg").showModal();
