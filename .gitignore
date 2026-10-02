@@ -1,0 +1,11 @@
+# Echte data en back-ups blijven op de laptop van pa
+tijdschrijven.json
+tijdschrijven_*.json
+*.bak.json
+
+# Lokale Claude-instellingen
+.claude/settings.local.json
+# Back-ups en reparatie-uitvoer (data)
+backups/
+tijdschrijven.REPAIRED.json
+nieuwe_regels.json
