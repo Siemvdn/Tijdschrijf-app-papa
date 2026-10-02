@@ -1,0 +1,734 @@
+﻿<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tijdschrijven – Meubelmaker</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --line:#e2e5ea; --line2:#eef0f3;
+    --ink:#1f2430; --muted:#7a818d; --accent:#7a5c3e; --accent2:#a07a52;
+    --reis:#fff7ec; --reis-line:#f0dcc0; --ok:#2f8f5b; --warn:#c4632c; --danger:#c0392b;
+    --row-h:34px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;display:flex;flex-direction:column;height:100vh}
+
+  header{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+  header h1 .logo{height:34px;width:auto;display:block}
+  .grow{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:550;display:inline-flex;align-items:center;gap:6px}
+  .btn:hover{background:#f7f8fa}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:var(--accent2)}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+  .btn.ghost:hover{background:#f0f1f4;color:var(--ink)}
+  #status{font-size:12px;color:var(--muted);min-width:110px}
+  #status.saved{color:var(--ok)} #status.dirty{color:var(--warn)}
+
+  .summary{display:flex;gap:10px;padding:10px 16px 0;flex-wrap:wrap}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:120px}
+  .card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .card .val{font-size:18px;font-weight:650;margin-top:2px}
+  .card select{border:none;background:transparent;font-size:13px;color:var(--ink);font-weight:600;margin-top:2px}
+
+  main{flex:1;overflow:auto;padding:12px 16px 80px}
+  .day{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden;box-shadow:0 1px 2px rgba(20,20,40,.03)}
+  .day-head{display:flex;align-items:center;gap:12px;padding:9px 14px;background:#fbfaf8;border-bottom:1px solid var(--line)}
+  .day-head .date{font-weight:650;font-size:14px}
+  .day-head .wk{font-size:12px;color:var(--muted)}
+  .day-head .tot{font-size:12px;color:var(--muted)}
+  .day-head .tot b{color:var(--ink)}
+  .day-head .grow{flex:1}
+
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);background:#fff}
+  td{border-bottom:1px solid var(--line2);padding:0;height:var(--row-h);vertical-align:middle}
+  tr.reis td{background:var(--reis);border-bottom-color:var(--reis-line)}
+  tr:hover td{background:#f6f7f9}
+  tr.reis:hover td{background:#fdf1df}
+
+  td input,td select{width:100%;height:var(--row-h);border:0;background:transparent;padding:0 8px;font-size:13px;color:var(--ink);font-family:inherit}
+  td input:focus,td select:focus{outline:2px solid var(--accent2);outline-offset:-2px;background:#fff;border-radius:4px}
+  td.num input{text-align:right}
+  td .ro{color:var(--muted);padding:0 8px;display:block}
+  .col-del{width:30px;text-align:center}
+  .del{border:0;background:transparent;color:#c9ccd2;cursor:pointer;font-size:15px;width:100%;height:var(--row-h)}
+  .del:hover{color:var(--danger)}
+  tr.reis-row select.proj{font-weight:600}
+  td select{cursor:pointer;appearance:auto}
+
+  .day-foot{padding:7px 10px;display:flex;gap:8px}
+  .addrow{border:1px dashed var(--line);background:#fff;color:var(--accent);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
+  .addrow:hover{background:#fbf7f2}
+
+  col.c-start,col.c-eind{width:80px}
+  col.c-pauze{width:64px}
+  col.c-duur{width:70px}
+  col.c-km{width:60px}
+  col.c-best{width:130px}
+  col.c-werk{width:150px}
+  col.c-del{width:30px}
+
+  .empty{padding:50px;text-align:center;color:var(--muted)}
+  dialog{border:1px solid var(--line);border-radius:14px;padding:0;max-width:560px;width:92%}
+  dialog::backdrop{background:rgba(20,20,35,.35)}
+  .dlg-h{padding:14px 18px;border-bottom:1px solid var(--line);font-weight:650;font-size:15px}
+  .dlg-b{padding:16px 18px;font-size:13px;line-height:1.55;color:#3a414e}
+  .dlg-b code{background:#f0f1f4;padding:1px 5px;border-radius:4px}
+  .dlg-b ul{margin:6px 0 14px;padding-left:20px}
+  .dlg-f{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1f2430;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+  .tipbar{font-size:12px;color:var(--muted);padding:0 16px 6px}
+  kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;font-size:11px;font-family:inherit}
+
+  /* tabs */
+  .tabs{display:flex;gap:4px;margin-left:6px}
+  .tab{border:0;background:transparent;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+  .tab:hover{background:#f0f1f4;color:var(--ink)}
+  .tab.active{background:var(--accent);color:#fff}
+
+  /* dashboard */
+  .dash{padding:16px;max-width:1200px;margin:0 auto;overflow:auto}
+  .dash-controls{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .dash-controls select{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-weight:600;background:#fff;color:var(--ink)}
+  .kpis{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:120px}
+  .kpi .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .kpi .val{font-size:20px;font-weight:650;margin-top:2px}
+  .dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  @media(max-width:900px){.dash-grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  .panel h2{font-size:14px;margin:0 0 12px;font-weight:650}
+  .panel h2 small{font-weight:500;color:var(--muted);font-size:12px;margin-left:6px}
+  .bars{max-height:340px;overflow:auto}
+  .bar-row{display:flex;align-items:center;gap:10px;margin:5px 0;font-size:12px}
+  .bar-lbl{width:84px;color:var(--muted);text-align:right;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bars.wide .bar-lbl{width:190px;text-align:left}
+  .bar-track{flex:1;background:#f0f1f4;border-radius:6px;height:16px;overflow:hidden}
+  .bar-fill{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;min-width:2px}
+  .bar-val{width:58px;text-align:right;font-variant-numeric:tabular-nums;flex:none;font-weight:600}
+  .empty-panel{color:var(--muted);font-size:13px;padding:20px 0;text-align:center}
+
+  .matrix-wrap{overflow:auto}
+  table.matrix{border-collapse:collapse;width:100%;font-size:12px}
+  table.matrix th,table.matrix td{border:1px solid var(--line);padding:5px 9px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  table.matrix th{background:#fbfaf8;font-weight:600;color:var(--muted)}
+  table.matrix th.rowh,table.matrix td.rowh{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
+  table.matrix thead th{position:sticky;top:0;z-index:2}
+  table.matrix thead th.rowh{z-index:3}
+  table.matrix tr.tot td,table.matrix td.tot{font-weight:700;background:#fbfaf8}
+  table.matrix tr.tot td.rowh{background:#fbfaf8}
+  table.matrix td.cell.zero{color:#cfd3da}
+
+  /* beheer */
+  .be-intro{font-size:13px;color:var(--muted);margin:0 0 16px;max-width:760px;line-height:1.5}
+  .beheer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;align-items:start}
+  .be-panel{display:flex;flex-direction:column}
+  .be-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+  .be-row{display:flex;align-items:center;gap:6px}
+  .be-name{flex:1;min-width:0;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff}
+  .be-name:focus{outline:2px solid var(--accent2);outline-offset:-1px}
+  .be-use{min-width:24px;text-align:center;font-size:11px;color:var(--muted);flex:none}
+  .be-btn{border:1px solid var(--line);background:#fff;border-radius:6px;width:28px;height:32px;cursor:pointer;color:var(--muted);font-size:10px;padding:0;flex:none}
+  .be-btn:hover{background:#f3f4f6;color:var(--ink)}
+  .be-del{font-size:14px}
+  .be-del:hover{color:var(--danger);border-color:var(--danger)}
+  .be-toggle{color:var(--ok);font-size:13px}
+  .be-toggle.off{color:#c9ccd2}
+  .be-row.inactief .be-name{color:var(--muted);background:#f7f7f8;text-decoration:line-through;text-decoration-color:#c9ccd2}
+  .be-add{display:flex;gap:6px;margin-top:auto}
+  .be-new{flex:1;min-width:0;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:13px;font-family:inherit}
+  .be-new:focus{outline:2px solid var(--accent2);outline-offset:-1px}
+  .be-addbtn{white-space:nowrap;margin:0}
+</style>
+</head>
+<body>
+<header>
+  <h1><img class="logo" src="logo.png" alt="Spintit"> Tijdschrijven</h1>
+  <nav class="tabs">
+    <button class="tab active" data-view="invoer">Invoer</button>
+    <button class="tab" data-view="dashboard">Dashboard</button>
+    <button class="tab" data-view="beheer">Beheer</button>
+  </nav>
+  <span id="status" class="saved">Opgeslagen</span>
+  <div class="grow"></div>
+  <span id="invoerBtns">
+    <button class="btn primary" id="btnVandaag">+ Vandaag</button>
+    <button class="btn" id="btnNieuweDag">+ Andere dag</button>
+  </span>
+  <button class="btn ghost" id="btnExport" title="Download een backup">Backup</button>
+  <button class="btn ghost" id="btnImport" title="Laad uit een JSON-bestand">Importeer</button>
+  <button class="btn ghost" id="btnHelp">?</button>
+</header>
+
+<div id="view-invoer">
+<div class="summary">
+  <div class="card">
+    <div class="lbl">Periode</div>
+    <select id="periode">
+      <option value="week">Deze week</option>
+      <option value="maand" selected>Deze maand</option>
+      <option value="alles">Alles</option>
+    </select>
+  </div>
+  <div class="card"><div class="lbl">Uren in periode</div><div class="val" id="sumUren">0:00</div></div>
+  <div class="card"><div class="lbl">Km in periode</div><div class="val" id="sumKm">0</div></div>
+  <div class="card"><div class="lbl">Dagen</div><div class="val" id="sumDagen">0</div></div>
+</div>
+<div class="tipbar">
+  <kbd>Enter</kbd> volgende regel &middot; <kbd>Tab</kbd> volgend veld &middot; starttijd wordt overgenomen van de vorige eindtijd &middot; "Reistijd" vult km &amp; bestemming automatisch.
+</div>
+
+<main id="main"></main>
+</div>
+
+<section id="view-dashboard" class="dash" hidden></section>
+
+<section id="view-beheer" class="dash" hidden></section>
+
+<datalist id="dlProjecten"></datalist>
+<datalist id="dlWerk"></datalist>
+<datalist id="dlBestemming"></datalist>
+
+<dialog id="helpDlg">
+  <div class="dlg-h">Hoe werkt het?</div>
+  <div class="dlg-b">
+    <p><b>Snel uren schrijven</b></p>
+    <ul>
+      <li><b>+ Vandaag</b> maakt (of opent) de dag van vandaag en zet meteen een regel klaar.</li>
+      <li>De <b>starttijd</b> van een volgende regel op dezelfde dag is automatisch de <b>eindtijd</b> van de regel ervoor.</li>
+      <li><b>Duur</b> wordt automatisch berekend (eindtijd &minus; starttijd &minus; pauze).</li>
+      <li>Kies bij <b>Project</b> "Reistijd": v&oacute;&oacute;r 10:00 &rarr; <code>20 km</code> + <code>MMC</code>, n&aacute; 14:00 &rarr; <code>20 km</code> + <code>Thuis</code>.</li>
+      <li>Met <kbd>Enter</kbd> spring je naar de volgende regel; op de laatste regel maak je er meteen een nieuwe bij.</li>
+    </ul>
+    <p><b>Opslaan</b></p>
+    <ul>
+      <li>De gegevens staan in <code>tijdschrijven.json</code>. De app leest dat bestand bij het openen en schrijft elke wijziging er automatisch naar terug (via <b>Start Tijdschrijven.cmd</b>).</li>
+      <li>Draait de server niet, dan wordt tijdelijk in de browser bewaard; gebruik dan <b>Backup</b> / <b>Importeer</b>.</li>
+      <li><b>Backup</b> downloadt een los JSON-bestand; <b>Importeer</b> laadt er een in.</li>
+    </ul>
+  </div>
+  <div class="dlg-f"><button class="btn primary" id="helpClose">Begrepen</button></div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================ data ============================ */
+
+const SEED_PROJECTEN = ["Reistijd","Adminstratie","01 Mediameubel Nijmegen","02 Kastenwand Zeist","03 Project Anne","04 Dressoir Marie Jeanne","05 Keukkast deuren Seraya","06 Cinewall Zeist","MMC werkzaamheden","Werken voor mij zelf","Inkoop en beurzen"];
+const SEED_WERK = ["1 Administratie","2 Ontwerp","3 Bouw","4 Afwerking","5 Plaatsen","6 Offerte fase","7 Reistijd"];
+const SEED_BEST = ["MMC","Thuis","Nijmegen","Zeist","Baarn"];
+
+const REIS = "Reistijd";
+const DEFAULT_START = "08:00";
+const REIS_KM = 20;
+const LS_KEY = "tijdschrijven_db_v1";
+
+let DB = { version:1, entries:[] };
+let projecten=[], werk=[], bestemming=[];
+let saveTimer = null;
+let currentView = "invoer";
+let dashYear = null;
+
+/* ============================ helpers ============================ */
+const $ = s => document.querySelector(s);
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+function toMin(t){ if(!t||!/^\d{1,2}:\d{2}$/.test(t)) return null; const [h,m]=t.split(":").map(Number); return h*60+m; }
+function durMin(e){ const s=toMin(e.start), x=toMin(e.eind); if(s==null||x==null) return null; let d=x-s; if(d<0) d+=1440; d-=(e.pauze||0); return d; }
+function hhmm(min){ if(min==null) return "–"; const neg=min<0; min=Math.abs(min); return (neg?"-":"")+Math.floor(min/60)+":"+String(min%60).padStart(2,"0"); }
+
+function isoWeek(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=(t.getUTCDay()+6)%7; t.setUTCDate(t.getUTCDate()-day+3); const f=new Date(Date.UTC(t.getUTCFullYear(),0,4)); return 1+Math.round(((t-f)/86400000-3+((f.getUTCDay()+6)%7))/7); }
+function parseDate(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+const DAGEN=["zo","ma","di","wo","do","vr","za"];
+const MAANDEN=["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
+function fmtDate(s){ const d=parseDate(s); return DAGEN[d.getDay()]+" "+d.getDate()+" "+MAANDEN[d.getMonth()]+" "+d.getFullYear(); }
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1900); }
+function setStatus(s){ const el=$("#status"); if(s==="saved"){el.className="saved";el.textContent="Opgeslagen";} else if(s==="dirty"){el.className="dirty";el.textContent="Opslaan…";} else {el.className="";el.textContent=s;} }
+
+/* ============================ persist ============================ */
+// Zorg dat de beheerbare lijsten in DB bestaan (eenmalig vullen uit seed + bestaande data).
+function ensureLists(){
+  const uniq=(seed,vals)=>{const out=[...seed];vals.forEach(v=>{if(v&&!out.includes(v))out.push(v);});return out;};
+  if(!Array.isArray(DB.projecten))     DB.projecten=uniq(SEED_PROJECTEN,DB.entries.map(e=>e.project));
+  if(!Array.isArray(DB.werkzaamheden)) DB.werkzaamheden=uniq(SEED_WERK,DB.entries.map(e=>e.werk));
+  if(!Array.isArray(DB.bestemmingen))  DB.bestemmingen=uniq(SEED_BEST,DB.entries.map(e=>e.bestemming));
+  if(!Array.isArray(DB.inactieveProjecten)) DB.inactieveProjecten=[];
+}
+function isInactief(name){ return (DB.inactieveProjecten||[]).includes(name); }
+function rebuildLists(){
+  ensureLists();
+  projecten=DB.projecten; werk=DB.werkzaamheden; bestemming=DB.bestemmingen;
+  fillDatalist("#dlProjecten",projecten.filter(p=>!isInactief(p))); // inactieve projecten niet aanbieden
+  fillDatalist("#dlWerk",werk);
+  fillDatalist("#dlBestemming",bestemming);
+}
+function fillDatalist(sel,arr){ $(sel).innerHTML=arr.map(v=>`<option value="${esc(v)}">`).join(""); }
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function scheduleSave(){ setStatus("dirty"); clearTimeout(saveTimer); saveTimer=setTimeout(saveAll,450); }
+async function saveAll(){
+  const json=JSON.stringify(DB,null,2);
+  try{ localStorage.setItem(LS_KEY,json); }catch(e){}   // offline reservekopie
+  try{
+    const res=await fetch("tijdschrijven.json",{method:"PUT",headers:{"Content-Type":"application/json"},body:json});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    // Controleer dat de server écht heeft weggeschreven (een oude server geeft 200 maar slaat niets op).
+    const ack=await res.json().catch(()=>null);
+    if(!ack || ack.ok!==true) throw new Error("server bevestigt opslaan niet");
+    setStatus("saved");
+  }catch(e){
+    setStatus("Niet op server – lokaal bewaard");
+  }
+}
+function loadLocal(){ const raw=localStorage.getItem(LS_KEY); if(raw){ try{ DB=JSON.parse(raw); if(!DB.entries)DB.entries=[]; return true; }catch(e){} } return false; }
+// Elke regel moet een id hebben; zonder id kan een bewerking niet aan de juiste regel
+// gekoppeld worden (en wordt dus niet opgeslagen). Data uit oudere bestanden mist dit soms.
+function normalizeDB(){
+  if(!Array.isArray(DB.entries)) DB.entries=[];
+  DB.entries.forEach(e=>{ if(!e.id) e.id=uid(); if(e.pauze==null) e.pauze=0; });
+}
+// tijdschrijven.json is de databron; localStorage is enkel reserve voor als de server niet draait
+async function loadData(){
+  try{
+    const res=await fetch("tijdschrijven.json",{cache:"no-store"});
+    if(res.ok){
+      const d=await res.json();
+      if(d && Array.isArray(d.entries)){ DB=d; try{ localStorage.setItem(LS_KEY,JSON.stringify(DB)); }catch(e){} return "server"; }
+    }
+  }catch(e){ /* geen server (bv. bestand direct geopend) */ }
+  if(loadLocal()) return "local";
+  DB={version:2,entries:[]}; return "leeg";
+}
+
+
+/* ============================ rendering ============================ */
+// Bepaalt of een datum binnen het gekozen periodefilter valt (week/maand/alles).
+function inPeriode(datum){
+  const mode=$("#periode").value;
+  if(mode==="alles") return true;
+  const d=parseDate(datum), now=new Date();
+  if(mode==="maand") return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+  return isoWeek(d)===isoWeek(now) && d.getFullYear()===now.getFullYear();
+}
+function groupByDay(){
+  const map={};
+  DB.entries.forEach(e=>{ if(!inPeriode(e.datum)) return; (map[e.datum]=map[e.datum]||[]).push(e); });
+  Object.values(map).forEach(arr=>arr.sort((a,b)=>(toMin(a.start)??9999)-(toMin(b.start)??9999)));
+  return Object.keys(map).sort((a,b)=>a<b?1:-1).map(d=>({datum:d,rows:map[d]})); // nieuwste dag boven
+}
+
+function render(){
+  rebuildLists();
+  const days=groupByDay(); const main=$("#main");
+  if(!days.length){
+    const heeftData=DB.entries.length>0, mode=$("#periode").value;
+    const msg = heeftData && mode!=="alles"
+      ? `Geen uren in ${mode==="week"?"deze week":"deze maand"}. Kies bij <b>Periode</b> "Alles" om alles te zien, of klik op <b>+ Vandaag</b>.`
+      : `Nog geen uren. Klik op <b>+ Vandaag</b> om te beginnen.`;
+    main.innerHTML=`<div class="empty">${msg}</div>`; updateSummary(); return;
+  }
+  main.innerHTML=days.map(dayHTML).join("");
+  updateSummary();
+}
+function dayTot(datum){ const rows=DB.entries.filter(e=>e.datum===datum); return { uren:rows.reduce((s,e)=>s+(durMin(e)||0),0), km:rows.reduce((s,e)=>s+(Number(e.km)||0),0) }; }
+
+function dayHTML(day){
+  const t=dayTot(day.datum); const d=parseDate(day.datum);
+  return `<div class="day" data-day="${day.datum}">
+    <div class="day-head">
+      <span class="date">${fmtDate(day.datum)}</span>
+      <span class="wk">week ${isoWeek(d)}</span>
+      <span class="grow"></span>
+      <span class="tot">${t.km?`<b>${t.km}</b> km &middot; `:""}<b>${hhmm(t.uren)}</b> uur</span>
+    </div>
+    <table>
+      <colgroup>
+        <col class="c-start"><col class="c-eind"><col class="c-pauze"><col class="c-duur">
+        <col class="c-proj"><col class="c-werk"><col class="c-km"><col class="c-best"><col><col class="c-del">
+      </colgroup>
+      <thead><tr>
+        <th>Start</th><th>Eind</th><th>Pauze</th><th>Duur</th>
+        <th>Project</th><th>Werkzaamheid</th><th>Km</th><th>Bestemming</th><th>Opmerking</th><th></th>
+      </tr></thead>
+      <tbody>${day.rows.map(rowHTML).join("")}</tbody>
+    </table>
+    <div class="day-foot"><button class="addrow" data-add="${day.datum}">+ regel</button></div>
+  </div>`;
+}
+// opties voor een dropdown; behoudt de huidige (evt. inactieve/onbekende) waarde zodat die zichtbaar blijft
+function buildOptions(list, current, placeholder){
+  const items=[...list];
+  if(current && !items.includes(current)) items.unshift(current);
+  let html=`<option value=""${current?"":" selected"}>${esc(placeholder)}</option>`;
+  items.forEach(v=>{ html+=`<option value="${esc(v)}"${v===current?" selected":""}>${esc(v)}</option>`; });
+  return html;
+}
+function rowHTML(e){
+  const reis=e.project===REIS;
+  const projOpts=buildOptions(projecten.filter(p=>!isInactief(p)), e.project, "project…");
+  const werkOpts=buildOptions(werk, e.werk, "werk…");
+  return `<tr class="${reis?'reis reis-row':''}" data-id="${e.id}">
+    <td><input type="time" data-f="start" value="${esc(e.start)}"></td>
+    <td><input type="time" data-f="eind" value="${esc(e.eind)}"></td>
+    <td class="num"><input type="number" min="0" step="30" data-f="pauze" value="${e.pauze||0}"></td>
+    <td><span class="ro">${hhmm(durMin(e))}</span></td>
+    <td><select class="proj" data-f="project">${projOpts}</select></td>
+    <td><select data-f="werk">${werkOpts}</select></td>
+    <td class="num"><input type="number" min="0" step="1" data-f="km" value="${e.km??""}"></td>
+    <td><input list="dlBestemming" data-f="bestemming" value="${esc(e.bestemming)}" placeholder="${reis?'bestemming…':''}"></td>
+    <td><input type="text" data-f="opmerking" value="${esc(e.opmerking)}"></td>
+    <td class="col-del"><button class="del" title="Verwijder regel">×</button></td>
+  </tr>`;
+}
+
+/* ============================ events ============================ */
+function getEntry(id){ return DB.entries.find(e=>e.id===id); }
+// Eén keer instellen: event-delegatie op #main, zodat een re-render geen duizenden
+// losse listeners hoeft te (her)koppelen. Werkt ook voor later toegevoegde regels.
+function setupMain(){
+  const main=$("#main");
+  main.addEventListener("change",e=>{ if(e.target.matches("tr[data-id] [data-f]")) onCellChange(e); });
+  main.addEventListener("keydown",e=>{ if(e.target.matches("tr[data-id] input[data-f]")) onKey(e); });
+  main.addEventListener("click",e=>{
+    const del=e.target.closest(".del"); if(del){ onDelete({target:del}); return; }
+    const add=e.target.closest(".addrow"); if(add && add.dataset.add){ addRow(add.dataset.add); }
+  });
+}
+function onCellChange(ev){
+  const tr=ev.target.closest("tr"); const e=getEntry(tr.dataset.id); if(!e) return;
+  const f=ev.target.dataset.f; let v=ev.target.value;
+  if(f==="pauze") v=v===""?0:Number(v);
+  else if(f==="km") v=v===""?null:Number(v);
+  e[f]=v;
+  if(f==="project"||f==="start") applyReisDefaults(e);
+  // nieuw getypte project/werk/bestemming meteen aan de beheerlijst toevoegen
+  if((f==="project"||f==="werk"||f==="bestemming") && v){
+    const key=f==="project"?"projecten":f==="werk"?"werkzaamheden":"bestemmingen";
+    if(DB[key] && !DB[key].includes(v)) DB[key].push(v);
+  }
+  refreshRow(e); rebuildLists(); updateSummary(); scheduleSave();
+}
+function applyReisDefaults(e){
+  if(e.project!==REIS) return;
+  if(e.km==null||e.km==="") e.km=REIS_KM;
+  const s=toMin(e.start);
+  if(!e.bestemming && s!=null){
+    if(s<toMin("10:00")) e.bestemming="MMC";
+    else if(s>toMin("14:00")) e.bestemming="Thuis";
+  }
+}
+function refreshRow(e){
+  const tr=document.querySelector(`tr[data-id="${e.id}"]`); if(!tr) return;
+  tr.classList.toggle("reis",e.project===REIS);
+  tr.classList.toggle("reis-row",e.project===REIS);
+  tr.querySelector('[data-f="km"]').value=e.km??"";
+  tr.querySelector('[data-f="bestemming"]').value=e.bestemming||"";
+  tr.querySelector('.ro').textContent=hhmm(durMin(e));
+  updateDayTotal(e.datum);
+}
+function updateDayTotal(datum){
+  const dayEl=document.querySelector(`.day[data-day="${datum}"]`); if(!dayEl) return;
+  const t=dayTot(datum);
+  dayEl.querySelector('.tot').innerHTML=(t.km?`<b>${t.km}</b> km &middot; `:"")+`<b>${hhmm(t.uren)}</b> uur`;
+}
+function onKey(ev){
+  if(ev.key!=="Enter") return;
+  ev.preventDefault();
+  const tr=ev.target.closest("tr"); const f=ev.target.dataset.f; const next=tr.nextElementSibling;
+  if(next && next.dataset.id){ const t=next.querySelector(`[data-f="${f}"]`); if(t){t.focus(); if(t.select)t.select();} }
+  else addRow(tr.closest(".day").dataset.day); // nieuwe regel -> focus op eindtijd (default)
+}
+function onDelete(ev){
+  const tr=ev.target.closest("tr"); DB.entries=DB.entries.filter(e=>e.id!==tr.dataset.id);
+  render(); scheduleSave();
+}
+// Zorg dat de gegeven dag binnen het zichtbare periodefilter valt (anders verschijnt een nieuwe regel niet).
+function ensureZichtbaar(datum){ if(!inPeriode(datum)) $("#periode").value="alles"; }
+function addRow(datum,focusField){
+  ensureZichtbaar(datum);
+  const rows=DB.entries.filter(e=>e.datum===datum).sort((a,b)=>(toMin(a.start)??0)-(toMin(b.start)??0));
+  const last=rows[rows.length-1];
+  // project & werkzaamheid altijd leeg; starttijd = eindtijd van de vorige regel
+  const e={id:uid(),datum,start:last&&last.eind?last.eind:DEFAULT_START,eind:"",pauze:0,
+    project:"",werk:"",km:null,bestemming:"",opmerking:""};
+  DB.entries.push(e); render(); scheduleSave();
+  const tr=document.querySelector(`tr[data-id="${e.id}"]`);
+  if(tr){ tr.scrollIntoView({block:"nearest"});
+    const target=focusField || (last ? "eind" : "start"); // eerste regel -> starttijd, volgende -> eindtijd
+    const t=tr.querySelector(`[data-f="${target}"]`); if(t)t.focus();
+  }
+}
+function addDay(datum){
+  ensureZichtbaar(datum);
+  if(!DB.entries.some(e=>e.datum===datum)){
+    const e={id:uid(),datum,start:DEFAULT_START,eind:"",pauze:0,project:"",werk:"",km:null,bestemming:"",opmerking:""};
+    DB.entries.push(e); render(); scheduleSave();
+    const tr=document.querySelector(`tr[data-id="${e.id}"]`); if(tr){ tr.scrollIntoView({block:"center"}); tr.querySelector('[data-f="start"]').focus(); }
+  } else { const dayEl=document.querySelector(`.day[data-day="${datum}"]`); if(dayEl) dayEl.scrollIntoView({block:"start"}); addRow(datum); }
+}
+
+/* ============================ summary ============================ */
+function updateSummary(){
+  const mode=$("#periode").value; const now=new Date();
+  const curWk=isoWeek(now), curMo=now.getMonth(), curYr=now.getFullYear();
+  let totMin=0,totKm=0; const dayset=new Set();
+  DB.entries.forEach(e=>{
+    const d=parseDate(e.datum); let inc=false;
+    if(mode==="alles") inc=true;
+    else if(mode==="maand") inc=(d.getMonth()===curMo&&d.getFullYear()===curYr);
+    else inc=(isoWeek(d)===curWk&&d.getFullYear()===curYr);
+    if(inc){ totMin+=durMin(e)||0; totKm+=Number(e.km)||0; dayset.add(e.datum); }
+  });
+  $("#sumUren").textContent=hhmm(totMin); $("#sumKm").textContent=totKm; $("#sumDagen").textContent=dayset.size;
+}
+
+/* ============================ dashboard ============================ */
+function switchView(v){
+  currentView=v;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.view===v));
+  $("#view-invoer").hidden = v!=="invoer";
+  $("#view-dashboard").hidden = v!=="dashboard";
+  $("#view-beheer").hidden = v!=="beheer";
+  $("#invoerBtns").style.display = v==="invoer"?"":"none";
+  if(v==="invoer") render();          // dropdowns verversen met evt. gewijzigde lijsten
+  if(v==="dashboard") renderDashboard();
+  if(v==="beheer") renderBeheer();
+}
+
+/* ============================ beheer ============================ */
+const FIELD_OF={projecten:"project",werkzaamheden:"werk",bestemmingen:"bestemming"};
+const TITLE_OF={projecten:"Projecten",werkzaamheden:"Werkzaamheden",bestemmingen:"Bestemmingen"};
+function usageCount(key,val){ const f=FIELD_OF[key]; return DB.entries.filter(e=>e[f]===val).length; }
+
+function renderBeheer(){
+  ensureLists();
+  $("#view-beheer").innerHTML=`
+    <p class="be-intro">Beheer hier je keuzelijsten. Ze verschijnen direct bij de invoer. Het getal achter een waarde toont in hoeveel regels die wordt gebruikt. Hernoemen past ook bestaande regels aan. Een project op <b>inactief</b> zetten (het bolletje) haalt het uit de invoer-keuzelijst, maar het blijft zichtbaar in de rapportages.</p>
+    <div class="beheer-grid">
+      ${listEditor("projecten")}
+      ${listEditor("werkzaamheden")}
+      ${listEditor("bestemmingen")}
+    </div>`;
+  bindBeheer();
+}
+function listEditor(key){
+  const arr=DB[key]||[];
+  const canToggle = key==="projecten";
+  const items=arr.map((v,i)=>{
+    const u=usageCount(key,v);
+    const off=canToggle && isInactief(v);
+    const toggleBtn = canToggle
+      ? `<button class="be-btn be-toggle${off?" off":""}" data-act="toggle" title="${off?"Inactief – klik om te activeren":"Actief – klik om inactief te maken"}">${off?"&#9711;":"&#9679;"}</button>`
+      : "";
+    return `<div class="be-row${off?" inactief":""}" data-key="${key}" data-i="${i}">
+      <input class="be-name" data-key="${key}" data-i="${i}" value="${esc(v)}">
+      <span class="be-use" title="aantal regels">${u||""}</span>
+      ${toggleBtn}
+      <button class="be-btn" data-act="up" title="Omhoog">&#9650;</button>
+      <button class="be-btn" data-act="down" title="Omlaag">&#9660;</button>
+      <button class="be-btn be-del" data-act="del" title="Verwijder">&times;</button>
+    </div>`;
+  }).join("");
+  const inactCount = canToggle ? arr.filter(isInactief).length : 0;
+  const sub = `${arr.length}${inactCount?` &middot; ${inactCount} inactief`:""}`;
+  return `<div class="panel be-panel">
+    <h2>${TITLE_OF[key]} <small>${sub}</small></h2>
+    <div class="be-list">${items||'<div class="empty-panel">Nog niets.</div>'}</div>
+    <div class="be-add">
+      <input class="be-new" data-key="${key}" placeholder="Nieuw toevoegen…">
+      <button class="addrow be-addbtn" data-key="${key}">+ Toevoegen</button>
+    </div>
+  </div>`;
+}
+function bindBeheer(){
+  const root=$("#view-beheer");
+  root.querySelectorAll(".be-name").forEach(inp=>{
+    inp.addEventListener("change",e=>renameItem(e.target.dataset.key,+e.target.dataset.i,e.target.value));
+  });
+  root.querySelectorAll(".be-row .be-btn").forEach(b=>{
+    b.addEventListener("click",e=>{
+      const row=e.currentTarget.closest(".be-row"); const key=row.dataset.key, i=+row.dataset.i, act=e.currentTarget.dataset.act;
+      if(act==="up") moveItem(key,i,-1);
+      else if(act==="down") moveItem(key,i,1);
+      else if(act==="del") deleteItem(key,i);
+      else if(act==="toggle") toggleActief(i);
+    });
+  });
+  root.querySelectorAll(".be-addbtn").forEach(b=>{
+    b.addEventListener("click",()=>{ const inp=root.querySelector(`.be-new[data-key="${b.dataset.key}"]`); addItem(b.dataset.key,inp.value); });
+  });
+  root.querySelectorAll(".be-new").forEach(inp=>{
+    inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); addItem(inp.dataset.key,inp.value); } });
+  });
+}
+function afterBeheerChange(){ rebuildLists(); renderBeheer(); scheduleSave(); }
+function toggleActief(i){
+  const name=DB.projecten[i]; const set=DB.inactieveProjecten; const idx=set.indexOf(name);
+  if(idx>=0) set.splice(idx,1); else set.push(name);
+  afterBeheerChange();
+  toast(idx>=0?`"${name}" is weer actief.`:`"${name}" is inactief — niet meer in de invoerlijst.`);
+}
+function addItem(key,val){ val=(val||"").trim(); if(!val) return;
+  if(DB[key].includes(val)){ toast("Bestaat al."); return; }
+  DB[key].push(val); afterBeheerChange();
+}
+function renameItem(key,i,val){ val=(val||"").trim(); const old=DB[key][i];
+  if(val===old) return;
+  if(!val){ DB[key].splice(i,1); afterBeheerChange(); return; }
+  if(DB[key].includes(val)){ toast("Bestaat al."); renderBeheer(); return; }
+  DB[key][i]=val;
+  if(key==="projecten"){ const si=DB.inactieveProjecten.indexOf(old); if(si>=0) DB.inactieveProjecten[si]=val; }
+  const f=FIELD_OF[key]; let n=0; DB.entries.forEach(e=>{ if(e[f]===old){ e[f]=val; n++; } });
+  afterBeheerChange(); if(n) toast(`Hernoemd in ${n} regel(s).`);
+}
+function moveItem(key,i,dir){ const j=i+dir; const a=DB[key]; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; afterBeheerChange(); }
+function deleteItem(key,i){ const val=DB[key][i]; const used=usageCount(key,val);
+  if(used && !confirm(`"${val}" wordt nog gebruikt in ${used} regel(s).\nUit de lijst verwijderen? De bestaande regels behouden hun waarde.`)){ return; }
+  DB[key].splice(i,1);
+  if(key==="projecten"){ const si=DB.inactieveProjecten.indexOf(val); if(si>=0) DB.inactieveProjecten.splice(si,1); }
+  afterBeheerChange();
+}
+
+function barChart(rows,wide){
+  if(!rows.length) return `<div class="empty-panel">Geen gegevens.</div>`;
+  const max=Math.max(1,...rows.map(r=>r.min));
+  return `<div class="bars${wide?" wide":""}">`+rows.map(r=>
+    `<div class="bar-row"><span class="bar-lbl">${esc(r.label)}</span>`+
+    `<span class="bar-track"><span class="bar-fill" style="width:${(r.min/max*100).toFixed(1)}%"></span></span>`+
+    `<span class="bar-val">${hhmm(r.min)}</span></div>`).join("")+`</div>`;
+}
+
+function renderDashboard(){
+  const years=[...new Set(DB.entries.map(e=>e.datum.slice(0,4)))].sort().reverse();
+  if(dashYear===null || (dashYear!=="ALL" && !years.includes(dashYear)))
+    dashYear = years[0] || String(new Date().getFullYear());
+  const inScope = e => dashYear==="ALL" || e.datum.slice(0,4)===dashYear;
+  const scope = DB.entries.filter(inScope);
+
+  // per maand
+  const monMap={};
+  scope.forEach(e=>{ const k=e.datum.slice(0,7); monMap[k]=(monMap[k]||0)+(durMin(e)||0); });
+  const monRows=Object.keys(monMap).sort().map(k=>{ const[y,m]=k.split("-");
+    return {label:MAANDEN[+m-1].slice(0,3)+(dashYear==="ALL"?" '"+y.slice(2):""), min:monMap[k]}; });
+
+  // per week (ISO)
+  const wkMap={};
+  scope.forEach(e=>{ const d=parseDate(e.datum); const k=d.getFullYear()+"-"+String(isoWeek(d)).padStart(2,"0");
+    wkMap[k]=(wkMap[k]||0)+(durMin(e)||0); });
+  const wkRows=Object.keys(wkMap).sort().map(k=>{ const[y,w]=k.split("-");
+    return {label:"wk "+(+w)+(dashYear==="ALL"?" '"+y.slice(2):""), min:wkMap[k]}; });
+
+  // KPI's
+  const totMin=scope.reduce((s,e)=>s+(durMin(e)||0),0);
+  const totKm=scope.reduce((s,e)=>s+(Number(e.km)||0),0);
+  const avgWk=wkRows.length?Math.round(totMin/wkRows.length):0;
+  const dagen=new Set(scope.map(e=>e.datum)).size;
+
+  // matrix project x werkzaamheid
+  const grid={}, projTot={}, werkTot={}; let grand=0;
+  const projSet=new Set(), werkSet=new Set();
+  scope.forEach(e=>{ const m=durMin(e)||0; if(m<=0) return;
+    const p=e.project||"—", w=e.werk||"—";
+    projSet.add(p); werkSet.add(w);
+    grid[p]=grid[p]||{}; grid[p][w]=(grid[p][w]||0)+m;
+    projTot[p]=(projTot[p]||0)+m; werkTot[w]=(werkTot[w]||0)+m; grand+=m; });
+  const wOrd=DB.werkzaamheden||SEED_WERK;
+  const werkList=[...werkSet].sort((a,b)=>{ const ia=wOrd.indexOf(a),ib=wOrd.indexOf(b);
+    return (ia<0?999:ia)-(ib<0?999:ib) || (a<b?-1:1); });
+  const projList=[...projSet].sort((a,b)=>projTot[b]-projTot[a]);
+  const maxCell=Math.max(1,...projList.flatMap(p=>werkList.map(w=>(grid[p]&&grid[p][w])||0)));
+
+  const yearOpts=years.map(y=>`<option value="${y}" ${y===dashYear?"selected":""}>${y}</option>`).join("")
+    +`<option value="ALL" ${dashYear==="ALL"?"selected":""}>Alle jaren</option>`;
+
+  let matrix;
+  if(!projList.length){ matrix=`<div class="empty-panel">Geen gegevens.</div>`; }
+  else{
+    const cell=(p,w)=>{ const m=(grid[p]&&grid[p][w])||0; if(!m) return `<td class="cell zero">·</td>`;
+      const a=(m/maxCell*0.62).toFixed(3);
+      return `<td class="cell" style="background:rgba(160,122,82,${a})">${hhmm(m)}</td>`; };
+    matrix=`<div class="matrix-wrap"><table class="matrix"><thead><tr>`+
+      `<th class="rowh">Project \\ Werk</th>`+
+      werkList.map(w=>`<th>${esc(w)}</th>`).join("")+`<th class="tot">Totaal</th></tr></thead><tbody>`+
+      projList.map(p=>`<tr><td class="rowh">${esc(p)}</td>`+
+        werkList.map(w=>cell(p,w)).join("")+
+        `<td class="tot">${hhmm(projTot[p])}</td></tr>`).join("")+
+      `</tbody><tfoot><tr class="tot"><td class="rowh">Totaal</td>`+
+        werkList.map(w=>`<td>${hhmm(werkTot[w])}</td>`).join("")+
+        `<td class="tot">${hhmm(grand)}</td></tr></tfoot></table></div>`;
+  }
+
+  const scopeLbl = dashYear==="ALL" ? "alle jaren" : dashYear;
+  $("#view-dashboard").innerHTML=`
+    <div class="dash-controls">
+      <label for="dashYear" style="color:var(--muted);font-size:13px">Jaar</label>
+      <select id="dashYear">${yearOpts}</select>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Totaal uren</div><div class="val">${hhmm(totMin)}</div></div>
+      <div class="kpi"><div class="lbl">Gemiddeld / week</div><div class="val">${hhmm(avgWk)}</div></div>
+      <div class="kpi"><div class="lbl">Gewerkte dagen</div><div class="val">${dagen}</div></div>
+      <div class="kpi"><div class="lbl">Kilometers</div><div class="val">${totKm}</div></div>
+    </div>
+    <div class="dash-grid">
+      <div class="panel"><h2>Uren per maand <small>${scopeLbl}</small></h2>${barChart(monRows)}</div>
+      <div class="panel"><h2>Uren per week <small>${scopeLbl}</small></h2>${barChart(wkRows)}</div>
+    </div>
+    <div class="panel"><h2>Uren per project <small>totaal</small></h2>${barChart(projList.map(p=>({label:p,min:projTot[p]})),true)}</div>
+    <div class="panel"><h2>Project &times; werkzaamheid <small>uren per combinatie</small></h2>${matrix}</div>
+  `;
+  const sel=$("#dashYear"); if(sel) sel.onchange=()=>{ dashYear=sel.value; renderDashboard(); };
+}
+
+/* ============================ import / export ============================ */
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="tijdschrijven_"+todayStr()+".json"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000); toast("Backup gedownload.");
+}
+function importJSON(){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=".json,application/json";
+  inp.onchange=async()=>{ const f=inp.files[0]; if(!f) return;
+    try{ const d=JSON.parse(await f.text()); const entries=Array.isArray(d)?d:(d.entries||[]);
+      entries.forEach(e=>{ if(!e.id)e.id=uid(); if(e.pauze==null)e.pauze=0; });
+      DB={version:2,entries};
+      if(Array.isArray(d.projecten)) DB.projecten=d.projecten;
+      if(Array.isArray(d.werkzaamheden)) DB.werkzaamheden=d.werkzaamheden;
+      if(Array.isArray(d.bestemmingen)) DB.bestemmingen=d.bestemmingen;
+      if(Array.isArray(d.inactieveProjecten)) DB.inactieveProjecten=d.inactieveProjecten;
+      render(); scheduleSave(); toast("Geïmporteerd: "+entries.length+" regels.");
+    }catch(e){ toast("Kon bestand niet lezen."); }
+  };
+  inp.click();
+}
+
+/* ============================ init ============================ */
+async function init(){
+  $("#btnVandaag").onclick=()=>addDay(todayStr());
+  $("#btnNieuweDag").onclick=()=>{ const d=prompt("Datum (jjjj-mm-dd):",todayStr()); if(d&&/^\d{4}-\d{2}-\d{2}$/.test(d)) addDay(d); else if(d) toast("Gebruik formaat jjjj-mm-dd."); };
+  $("#btnExport").onclick=exportJSON;
+  $("#btnImport").onclick=importJSON;
+  $("#btnHelp").onclick=()=>$("#helpDlg").showModal();
+  $("#helpClose").onclick=()=>$("#helpDlg").close();
+  $("#periode").onchange=render;   // ook de getoonde dagen verversen, niet enkel de samenvatting
+  document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>switchView(t.dataset.view));
+  setupMain();   // event-delegatie voor de invoertabel, eenmalig
+
+  const bron=await loadData();   // laadt uit tijdschrijven.json (server), anders localStorage
+  normalizeDB();                 // zorg dat elke regel een id heeft, anders is bewerken/opslaan stuk
+  render();
+  setStatus(bron==="server" ? "saved" : bron==="local" ? "Lokaal (geen server)" : "Leeg – geen databron");
+}
+init();
+</script>
+</body>
+</html>
