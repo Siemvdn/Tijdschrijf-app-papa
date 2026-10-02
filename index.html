@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tijdschrijven – Meubelmaker</title>
+<link rel="icon" href="logo.png">
 <style>
   :root{
     --bg:#f4f5f7; --panel:#ffffff; --line:#e2e5ea; --line2:#eef0f3;
@@ -903,6 +904,10 @@ async function init(){
   $("#periode").onchange=render;   // ook de getoonde dagen verversen, niet enkel de samenvatting
   document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>switchView(t.dataset.view));
   setupMain();   // event-delegatie voor de invoertabel, eenmalig
+  // Levensteken voor Tijdschrijven.exe: zo stopt de exe zodra het venster dicht gaat (andere servers negeren dit).
+  const ping=()=>fetch("ping",{cache:"no-store"}).catch(()=>{});
+  ping(); setInterval(ping,10000);
+  window.addEventListener("pagehide",()=>{ try{ navigator.sendBeacon("bye"); }catch(e){} });
 
   const bron=await loadData();   // laadt uit tijdschrijven.json (server), anders localStorage
   normalizeDB();                 // zorg dat elke regel een id heeft, anders is bewerken/opslaan stuk

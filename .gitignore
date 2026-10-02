@@ -9,3 +9,6 @@ tijdschrijven_*.json
 backups/
 tijdschrijven.REPAIRED.json
 nieuwe_regels.json
+
+# Gebouwde exe-map
+dist/
