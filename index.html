@@ -145,6 +145,12 @@
   .be-new{flex:1;min-width:0;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:13px;font-family:inherit}
   .be-new:focus{outline:2px solid var(--accent2);outline-offset:-1px}
   .be-addbtn{white-space:nowrap;margin:0}
+  .be-filter{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:-4px 0 12px}
+  .be-filter button{border:0;border-right:1px solid var(--line);background:#fff;padding:5px 11px;font-size:12px;font-weight:600;font-family:inherit;color:var(--muted);cursor:pointer}
+  .be-filter button:last-child{border-right:0}
+  .be-filter button:hover{background:#f3f4f6;color:var(--ink)}
+  .be-filter button.on{background:var(--accent);color:#fff}
+  .be-filter button span{font-weight:500;opacity:.8;margin-left:2px}
   .sv-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
   .sv-top select{padding:5px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;color:var(--ink)}
   .sv-legend{margin-left:auto;font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
@@ -477,7 +483,7 @@ function onCellChange(ev){
   // nieuw getypte project/werk/bestemming meteen aan de beheerlijst toevoegen
   if((f==="project"||f==="werk"||f==="bestemming") && v){
     const key=f==="project"?"projecten":f==="werk"?"werkzaamheden":"bestemmingen";
-    if(DB[key] && !DB[key].includes(v)) DB[key].push(v);
+    if(DB[key] && !DB[key].includes(v)){ if(key==="projecten") DB[key].unshift(v); else DB[key].push(v); }   // nieuw project bovenaan
   }
   refreshRow(e); rebuildLists(); updateSummary(); scheduleSave();
 }
@@ -639,10 +645,14 @@ function bindSchatting(){
     });
   });
 }
+// filter in het projectenoverzicht: "actief", "inactief" of "alle" (alleen weergave; de lijst zelf blijft ongewijzigd)
+let projFilter="actief";
+function projZichtbaar(v){ return projFilter==="alle" || (projFilter==="inactief")===isInactief(v); }
 function listEditor(key){
   const arr=DB[key]||[];
   const canToggle = key==="projecten";
   const items=arr.map((v,i)=>{
+    if(canToggle && !projZichtbaar(v)) return "";   // data-i blijft de echte positie in de volledige lijst
     const u=usageCount(key,v);
     const off=canToggle && isInactief(v);
     const toggleBtn = canToggle
@@ -659,9 +669,16 @@ function listEditor(key){
   }).join("");
   const inactCount = canToggle ? arr.filter(isInactief).length : 0;
   const sub = `${arr.length}${inactCount?` &middot; ${inactCount} inactief`:""}`;
+  const filterBar = canToggle
+    ? `<div class="be-filter" role="group" aria-label="Filter projecten">`+
+      [["actief","Actief",arr.length-inactCount],["inactief","Inactief",inactCount],["alle","Alle",arr.length]].map(([k,l,n])=>
+        `<button type="button" class="${projFilter===k?"on":""}" data-pfilter="${k}">${l} <span>${n}</span></button>`).join("")+`</div>`
+    : "";
+  const leeg = canToggle ? `Geen ${projFilter==="alle"?"":projFilter+"e "}projecten.` : "Nog niets.";
   return `<div class="panel be-panel">
     <h2>${TITLE_OF[key]} <small>${sub}</small></h2>
-    <div class="be-list">${items||'<div class="empty-panel">Nog niets.</div>'}</div>
+    ${filterBar}
+    <div class="be-list">${items.replace(/\s/g,"")?items:`<div class="empty-panel">${leeg}</div>`}</div>
     <div class="be-add">
       <input class="be-new" data-key="${key}" placeholder="Nieuw toevoegen…">
       <button class="addrow be-addbtn" data-key="${key}">+ Toevoegen</button>
@@ -682,6 +699,9 @@ function bindBeheer(){
       else if(act==="toggle") toggleActief(i);
     });
   });
+  root.querySelectorAll("[data-pfilter]").forEach(b=>{
+    b.addEventListener("click",()=>{ projFilter=b.dataset.pfilter; renderBeheer(); });
+  });
   root.querySelectorAll(".be-addbtn").forEach(b=>{
     b.addEventListener("click",()=>{ const inp=root.querySelector(`.be-new[data-key="${b.dataset.key}"]`); addItem(b.dataset.key,inp.value); });
   });
@@ -698,7 +718,10 @@ function toggleActief(i){
 }
 function addItem(key,val){ val=(val||"").trim(); if(!val) return;
   if(DB[key].includes(val)){ toast("Bestaat al."); return; }
-  DB[key].push(val); afterBeheerChange();
+  // nieuw project bovenaan (en zichtbaar, ook als het filter op "inactief" stond); andere lijsten blijven onderaan
+  if(key==="projecten"){ DB[key].unshift(val); if(projFilter==="inactief") projFilter="actief"; }
+  else DB[key].push(val);
+  afterBeheerChange();
 }
 function renameItem(key,i,val){ val=(val||"").trim(); const old=DB[key][i];
   if(val===old) return;
@@ -712,7 +735,13 @@ function renameItem(key,i,val){ val=(val||"").trim(); const old=DB[key][i];
   const f=FIELD_OF[key]; let n=0; DB.entries.forEach(e=>{ if(e[f]===old){ e[f]=val; n++; } });
   afterBeheerChange(); if(n) toast(`Hernoemd in ${n} regel(s).`);
 }
-function moveItem(key,i,dir){ const j=i+dir; const a=DB[key]; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; afterBeheerChange(); }
+function moveItem(key,i,dir){
+  const a=DB[key]; let j=i+dir;
+  // bij een gefilterd projectenoverzicht naar het eerstvolgende zichtbare item, anders lijkt er niets te gebeuren
+  if(key==="projecten") while(j>=0 && j<a.length && !projZichtbaar(a[j])) j+=dir;
+  if(j<0||j>=a.length) return;
+  [a[i],a[j]]=[a[j],a[i]]; afterBeheerChange();
+}
 // verwijdert de schattingen die bij een project/werkzaamheid hoorden
 function dropSchat(key,val){
   if(key==="projecten") delete DB.schattingen[val];
