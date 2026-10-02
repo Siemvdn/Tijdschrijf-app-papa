@@ -235,6 +235,12 @@
       <li>Draait de server niet, dan wordt tijdelijk in de browser bewaard; gebruik dan <b>Backup</b> / <b>Importeer</b>.</li>
       <li><b>Backup</b> downloadt een los JSON-bestand; <b>Importeer</b> laadt er een in.</li>
     </ul>
+    <div id="locBox" hidden>
+      <p><b>Waar staan mijn gegevens?</b></p>
+      <p><code id="locPad" style="word-break:break-all"></code></p>
+      <p style="margin:0">Automatische back-ups staan in de map <code>backups</code> naast dat bestand.</p>
+      <p><button class="btn" id="locBtn">Andere plek kiezen…</button></p>
+    </div>
   </div>
   <div class="dlg-f"><button class="btn primary" id="helpClose">Begrepen</button></div>
 </dialog>
@@ -899,7 +905,20 @@ async function init(){
   };
   $("#btnExport").onclick=exportJSON;
   $("#btnImport").onclick=importJSON;
-  $("#btnHelp").onclick=()=>$("#helpDlg").showModal();
+  $("#btnHelp").onclick=async()=>{
+    $("#helpDlg").showModal();
+    try{   // alleen met Tijdschrijven.exe bestaat dit; andere servers geven 404 en dan blijft het blok verborgen
+      const r=await fetch("datalocatie",{cache:"no-store"}); const d=r.ok?await r.json():null;
+      $("#locBox").hidden=!(d&&d.pad); if(d&&d.pad) $("#locPad").textContent=d.pad;
+    }catch(e){ $("#locBox").hidden=true; }
+  };
+  $("#locBtn").onclick=async()=>{
+    try{
+      const r=await fetch("kies-locatie",{method:"POST"}); const d=await r.json();
+      if(d.ok){ location.reload(); }   // opnieuw laden uit de nieuwe plek
+      else toast("Niets gewijzigd.");
+    }catch(e){ toast("Kon de plek niet wijzigen."); }
+  };
   $("#helpClose").onclick=()=>$("#helpDlg").close();
   $("#periode").onchange=render;   // ook de getoonde dagen verversen, niet enkel de samenvatting
   document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>switchView(t.dataset.view));

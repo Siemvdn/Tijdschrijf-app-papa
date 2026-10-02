@@ -32,6 +32,8 @@ static class Program
 
     static HttpListener listener;
     static int port;
+    static string dataPath;                // volledig pad naar tijdschrijven.json (mag overal staan)
+    static string ConfigFile { get { return Path.Combine(AppData, "datapad.txt"); } }
     static bool keepAlive;                 // --no-browser: nooit uit zichzelf stoppen (voor tests)
     static DateTime started = DateTime.UtcNow;
     static DateTime lastPing = DateTime.MinValue;
@@ -41,11 +43,12 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
-        int wantedPort = DefaultPort; bool noBrowser = false;
+        int wantedPort = DefaultPort; bool noBrowser = false; string dataArg = null;
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--port" && i + 1 < args.Length) int.TryParse(args[++i], out wantedPort);
             else if (args[i] == "--no-browser") noBrowser = true;
+            else if (args[i] == "--data" && i + 1 < args.Length) dataArg = Path.GetFullPath(args[++i]);
         }
         keepAlive = noBrowser;
         Directory.CreateDirectory(AppData);
@@ -64,6 +67,8 @@ static class Program
             {
                 if (!Directory.Exists(Root) || !File.Exists(Path.Combine(Root, "index.html")))
                     throw new Exception("index.html staat niet naast Tijdschrijven.exe (" + Root + ").");
+                dataPath = dataArg ?? ResolveDataPath();
+                if (dataPath == null) return 0;   // gebruiker annuleerde de keuze
                 StartServer(wantedPort);
                 File.WriteAllText(Path.Combine(AppData, "port.txt"), port.ToString());
                 new Thread(ServeLoop) { IsBackground = true }.Start();
@@ -82,6 +87,80 @@ static class Program
             }
         }
         return 0;
+    }
+
+    // ---------- plek van het databestand ----------
+
+    // Bepaalt waar tijdschrijven.json staat: onthouden pad, anders het bestand naast de exe, anders vragen.
+    static string ResolveDataPath()
+    {
+        try
+        {
+            string saved = File.Exists(ConfigFile) ? File.ReadAllText(ConfigFile, Utf8).Trim() : "";
+            if (saved.Length > 0 && File.Exists(saved)) return saved;
+            if (saved.Length > 0)
+            {
+                MessageBox.Show("Het gegevensbestand is niet gevonden op de vorige plek:\n\n" + saved +
+                    "\n\n(Staat de map of schijf er nog? Kies nu opnieuw waar het bestand staat.)", "Tijdschrijven", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            else
+            {
+                string local = Path.Combine(Root, DataFile);
+                if (File.Exists(local)) { SaveDataPath(local); return local; }
+            }
+        }
+        catch (Exception ex) { Log("CONFIG " + ex); }
+        string chosen = AskLocation(null);
+        if (chosen != null) SaveDataPath(chosen);
+        return chosen;
+    }
+
+    static void SaveDataPath(string p) { File.WriteAllText(ConfigFile, p, Utf8); }
+
+    // Vraagt waar het gegevensbestand staat (kiezen) of moet komen (nieuwe/kopie). null = geannuleerd.
+    // Er wordt nooit iets overschreven of verwijderd.
+    static string AskLocation(string current)
+    {
+        using (Form owner = new Form { TopMost = true, ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(-3000, -3000), Size = new System.Drawing.Size(1, 1) })
+        {
+            owner.Show();
+            bool hasCurrent = current != null && File.Exists(current);
+            string q = hasCurrent
+                ? "Waar moet het gegevensbestand komen?\n\nJA = een bestaand tijdschrijven.json kiezen\nNEE = de huidige gegevens kopiëren naar een andere map (het huidige bestand blijft staan)"
+                : "Waar staat je gegevensbestand?\n\nJA = ik heb al een tijdschrijven.json, die wil ik kiezen\nNEE = ik begin met een nieuw, leeg bestand in een map naar keuze";
+            DialogResult r = MessageBox.Show(owner, q, "Tijdschrijven – plek van de gegevens", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (r == DialogResult.Cancel) return null;
+            if (r == DialogResult.Yes)
+            {
+                using (OpenFileDialog dlg = new OpenFileDialog { Title = "Kies tijdschrijven.json", Filter = "Gegevensbestand (*.json)|*.json", CheckFileExists = true })
+                    return dlg.ShowDialog(owner) == DialogResult.OK ? dlg.FileName : null;
+            }
+            using (FolderBrowserDialog fb = new FolderBrowserDialog { Description = "Kies de map waar tijdschrijven.json moet staan" })
+            {
+                if (fb.ShowDialog(owner) != DialogResult.OK) return null;
+                string target = Path.Combine(fb.SelectedPath, DataFile);
+                if (File.Exists(target))
+                {
+                    if (MessageBox.Show(owner, "In die map staat al een tijdschrijven.json. Dat bestand gebruiken (er wordt niets overschreven)?", "Tijdschrijven", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return null;
+                    return target;
+                }
+                if (hasCurrent) File.Copy(current, target);
+                else File.WriteAllText(target, "{\n  \"version\": 2,\n  \"entries\": []\n}", Utf8);
+                return target;
+            }
+        }
+    }
+
+    // Voor de knop in de app: kiest op een STA-thread een nieuwe plek en schakelt de server erop om.
+    static object ChangeLocation()
+    {
+        string chosen = null; Exception err = null;
+        Thread t = new Thread(delegate () { try { chosen = AskLocation(dataPath); } catch (Exception ex) { err = ex; } });
+        t.SetApartmentState(ApartmentState.STA); t.Start(); t.Join();
+        if (err != null) throw err;
+        if (chosen == null) return Obj("ok", false, "geannuleerd", true);
+        lock (SaveLock) { dataPath = chosen; SaveDataPath(chosen); }
+        return Obj("ok", true, "pad", chosen);
     }
 
     // ---------- opstarten en afsluiten ----------
@@ -197,15 +276,18 @@ static class Program
             if (rel == "ping") { lastPing = DateTime.UtcNow; byeAt = DateTime.MinValue; SendJson(ctx, 200, Obj("ok", true)); return; }
             if (rel == "bye") { byeAt = DateTime.UtcNow; ctx.Response.StatusCode = 204; return; }
 
+            if (rel == "datalocatie" && method == "GET") { SendJson(ctx, 200, Obj("ok", true, "pad", dataPath)); return; }
+            if (rel == "kies-locatie" && method == "POST") { SendJson(ctx, 200, ChangeLocation()); return; }
+
             if (method == "PUT" || method == "POST")
             {
-                if (rel == DataFile) { lock (SaveLock) { SaveData(ctx, Path.Combine(Root, DataFile)); } }
+                if (rel == DataFile) { lock (SaveLock) { SaveData(ctx, dataPath); } }
                 else ctx.Response.StatusCode = 403;
                 return;
             }
 
-            string path = Path.GetFullPath(Path.Combine(Root, rel.Replace('/', Path.DirectorySeparatorChar)));
-            if (!path.StartsWith(Root, StringComparison.OrdinalIgnoreCase)) { ctx.Response.StatusCode = 403; return; }
+            string path = rel == DataFile ? dataPath : Path.GetFullPath(Path.Combine(Root, rel.Replace('/', Path.DirectorySeparatorChar)));
+            if (rel != DataFile && !path.StartsWith(Root, StringComparison.OrdinalIgnoreCase)) { ctx.Response.StatusCode = 403; return; }
             if (File.Exists(path))
             {
                 byte[] bytes = File.ReadAllBytes(path);
@@ -306,7 +388,7 @@ static class Program
                 return;
             }
             // Back-up van de huidige versie; alleen de oudste automatische back-ups worden opgeruimd.
-            string dir = Path.Combine(Root, "backups");
+            string dir = Path.Combine(Path.GetDirectoryName(target), "backups");   // naast het databestand
             Directory.CreateDirectory(dir);
             string backup = Path.Combine(dir, "tijdschrijven_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".json");
             if (!File.Exists(backup)) File.Copy(target, backup);   // nooit een bestaande back-up overschrijven
